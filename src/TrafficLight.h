@@ -26,6 +26,7 @@ private:
     std::deque<T> _queue;
     std::condition_variable _condition;
     static std::mutex _mutex;
+    bool _dataAvailable = false; // a predicate to avoid spurious wake ups and be sure to read the latest data
 };
 
 // FP.1 : Define a class „TrafficLight“ which is a child class of TrafficObject.
@@ -61,8 +62,6 @@ private:
     // and use it within the infinite loop to push each new TrafficLightPhase into it by calling
     // send in conjunction with move semantics.
     MessageQueue<TrafficLightPhase> _mQueue;
-    std::condition_variable _condition;
-    std::mutex _mutex;
 };
 
 #endif

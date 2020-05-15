@@ -13,20 +13,22 @@ T MessageQueue<T>::receive()
     // to wait for and receive new messages and pull them from the queue using move semantics.
     // The received object should then be returned by the receive function.
     std::unique_lock<std::mutex> lck(_mutex);
-    _condition.wait(lck, [this] { return !_queue.empty(); });
+    _condition.wait(lck, [this] { return _dataAvailable; });
     T msg = std::move(_queue.back());
-    _queue.clear();
+    _queue.pop_back();
+    _dataAvailable = false;
     return msg;
 }
 
 template <typename T>
-void MessageQueue<T>::send(T &&msg)
+void MessageQueue<T>::send(T &&m)
 {
     // FP.4a : The method send should use the mechanisms std::lock_guard<std::mutex>
     // as well as _condition.notify_one() to add a new message to the queue and afterwards send a notification.
     std::lock_guard<std::mutex> lck(_mutex);
-    std::cout << "Message added by " << std::this_thread::get_id() << std::endl;
-    _queue.push_back(std::move(msg));
+    std::cout << "Message:  " << m << " added by " << std::this_thread::get_id() << std::endl;
+    _queue.push_back(std::move(m));
+    _dataAvailable = true;
     _condition.notify_one();
 }
 
@@ -48,7 +50,7 @@ void TrafficLight::waitForGreen()
         if (_mQueue.receive() == TrafficLightPhase::green)
         {
             return;
-        };
+        }
     }
 }
 
@@ -73,21 +75,14 @@ void TrafficLight::cycleThroughPhases()
     std::chrono::system_clock::time_point start = std::chrono::system_clock::now();
     while (true)
     {
-        auto now = std::chrono::system_clock::now();
-        auto dur = std::chrono::duration_cast<std::chrono::seconds>(now - start).count();
+        auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - start).count();
         srand((unsigned)time(0));
-        int ranDur = 4 + (rand() % 3);
-        if (dur == ranDur)
+        int ranDur = 4000 + (rand() % 2001);
+        if (dur >= ranDur)
         {
             start = std::chrono::system_clock::now();
-            dur = 0;
             _currentPhase = static_cast<TrafficLightPhase>((_currentPhase + 1) % 2);
             _mQueue.send(std::move(_currentPhase));
-        }
-        else if(dur > ranDur)
-        {
-            start = std::chrono::system_clock::now();
-            dur = 0;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
